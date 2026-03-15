@@ -1,0 +1,22 @@
+# Banned site list
+# Leading dot (.example.com) matches the domain and all subdomains.
+# Bare entry (example.com) matches the exact hostname only.
+
+# Ad / tracking networks
+doubleclick.net
+.doubleclick.net
+.googleadservices.com
+.googlesyndication.com
+.adnxs.com
+.scorecardresearch.com
+.quantserve.com
+
+# Known malware / phishing test domains
+malware.testing.google.test
+.facebook.com   # Facebook phishing test domain
+test.com
+
+# Social media (uncomment to enforce)
+#.facebook.com
+#.tiktok.com
+#.instagram.com

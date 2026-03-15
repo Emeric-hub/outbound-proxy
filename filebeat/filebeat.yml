@@ -1,0 +1,55 @@
+---
+filebeat.inputs:
+
+  # ── Squid native access log ────────────────────────────────────────────────
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/squid/access.log
+    fields:
+      service: squid
+      log_type: access
+    fields_under_root: true
+
+  # ── E2Guardian access log ──────────────────────────────────────────────────
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/e2guardian/access.log
+    fields:
+      service: e2guardian
+      log_type: access
+    fields_under_root: true
+
+processors:
+  - add_host_metadata: ~
+  - add_docker_metadata: ~
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  username: "elastic"
+  password: "${ELASTIC_PASSWORD}"
+  # Grok parsing runs in Elasticsearch ingest pipelines (created by kibana-init)
+  pipelines:
+    - pipeline: "squid-access-parse"
+      when.equals:
+        service: "squid"
+    - pipeline: "e2guardian-access-parse"
+      when.equals:
+        service: "e2guardian"
+  indices:
+    - index: "squid-access-%{+yyyy.MM.dd}"
+      when.equals:
+        service: "squid"
+    - index: "e2guardian-access-%{+yyyy.MM.dd}"
+      when.equals:
+        service: "e2guardian"
+
+setup.kibana:
+  host: "http://kibana:5601"
+
+setup.ilm.enabled: false
+setup.template.enabled: false
+
+logging.level: info
+logging.to_stderr: true

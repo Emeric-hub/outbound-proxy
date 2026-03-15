@@ -1,0 +1,49 @@
+#domains in SSL grey list
+#Don't bother with the www. or the https://
+
+#This 'grey' lists override the 'banned' lists for SSL only.
+# Domains listed here are passed through as opaque CONNECT tunnels (no SSL MITM).
+# Add any domain that causes "Failed to negotiate ssl connection to client" errors.
+# Use a leading dot to match all subdomains: .example.com
+
+# ── Apple (certificate pinning on OS updates, iCloud, push) ──────────────────
+.apple.com
+.icloud.com
+.mzstatic.com
+.apple-dns.net
+
+# ── Google (Chrome updates, Safe Browsing, OCSP stapling) ────────────────────
+.googleapis.com
+.gstatic.com
+.google.com
+.gvt1.com
+.gvt2.com
+.ggpht.com
+
+# ── Microsoft (Windows Update, Azure, Teams) ─────────────────────────────────
+.microsoft.com
+.windowsupdate.com
+.windows.com
+.live.com
+.microsoftonline.com
+.azure.com
+.githubassets.com 
+
+# ── Mozilla (certificate transparency, OCSP, telemetry) ──────────────────────
+.mozilla.org
+.mozilla.net
+.mozilla.com
+.firefox.com
+
+# ── Certificate infrastructure (OCSP, CRL, CT logs) ─────────────────────────
+.ocsp.digicert.com
+.crl.digicert.com
+.ocsp.sectigo.com
+.crl.sectigo.com
+.ocsp.comodoca.com
+.pki.goog
+
+# ── Telemetry / analytics (commonly cert-pinned) ─────────────────────────────
+.elastic.co
+.applicationinsights.azure.com
+

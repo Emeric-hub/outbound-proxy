@@ -1,0 +1,98 @@
+# ELK logging stack — loaded automatically alongside docker-compose.yml.
+# To run the proxy without logging: docker compose -f docker-compose.yml up
+
+services:
+
+  # ── Log shipping ───────────────────────────────────────────────────────────
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${ELASTIC_VERSION:-8.13.0}
+    restart: unless-stopped
+    user: root
+    command: ["--strict.perms=false"]
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+    volumes:
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - squid-logs:/var/log/squid:ro
+      - e2guardian-logs:/var/log/e2guardian:ro
+    depends_on:
+      - elasticsearch
+    networks:
+      - proxy-net
+
+  # ── Search / storage backend ───────────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.13.0}
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      # Disable TLS on the HTTP layer — traffic stays inside the Docker network.
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      # Sets the password for the built-in 'elastic' superuser on first boot.
+      # To change it after first boot, delete the es-data volume and restart.
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    networks:
+      - proxy-net
+
+  # ── Visualisation ──────────────────────────────────────────────────────────
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION:-8.13.0}
+    restart: unless-stopped
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+      # Disable the interactive enrollment token prompt on first start
+      - xpack.security.enrollment.enabled=false
+      # Required alongside enrollment=false to fully skip the setup screen
+      - xpack.fleet.enabled=false
+      # Suppress telemetry opt-in banner and newsfeed on first launch
+      - telemetry.enabled=false
+      - telemetry.optIn=false
+      - newsfeed.enabled=false
+      # Hide solution sections — keep only Discover / Dashboards / Visualize
+      - xpack.securitySolution.enabled=false
+      - xpack.apm.enabled=false
+      - xpack.infra.enabled=false
+      - xpack.uptime.enabled=false
+      - xpack.synthetics.enabled=false
+      - xpack.ml.enabled=false
+      - xpack.osquery.enabled=false
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5601/api/status | grep -q '\"level\":\"available\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      - elasticsearch
+    networks:
+      - proxy-net
+
+  # ── Kibana provisioning (runs once, creates ingest pipelines + data views) ─
+  kibana-init:
+    image: alpine/curl:latest
+    restart: "no"
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - KIBANA_USER=${KIBANA_USER}
+      - KIBANA_PASSWORD=${KIBANA_PASSWORD}
+    volumes:
+      - ./kibana-init/init.sh:/init.sh:ro
+      - ./Kibana/export.ndjson:/export.ndjson:ro
+    entrypoint: ["sh", "/init.sh"]
+    depends_on:
+      kibana:
+        condition: service_healthy
+    networks:
+      - proxy-net
+
+volumes:
+  es-data:

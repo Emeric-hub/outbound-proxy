@@ -1,0 +1,13 @@
+# Exception (whitelist) — sites always allowed regardless of phrase scoring
+# Use this to prevent false positives on trusted domains
+
+# Infrastructure / update servers
+ubuntu.com
+debian.org
+docker.com
+github.com
+githubusercontent.com
+
+# Reference
+wikipedia.org
+example.com

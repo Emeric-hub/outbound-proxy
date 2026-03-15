@@ -1,0 +1,141 @@
+services:
+
+  # ── CA certificate generation (runs once before e2guardian) ────────────────
+  cert-init:
+    image: alpine:latest
+    restart: "no"
+    volumes:
+      - ./e2guardian/certs:/certs
+    command:
+      - sh
+      - -c
+      - |
+        if [ ! -f /certs/ca.crt ] || [ ! -f /certs/ca.key ] || [ ! -f /certs/cert.key ]; then
+          echo "[cert-init] Installing openssl..."
+          apk add --no-cache openssl >/dev/null 2>&1
+          echo "[cert-init] Generating self-signed CA (3650 days)..."
+          openssl req -new -x509 -days 3650 -nodes \
+            -subj "/CN=E2Guardian Proxy CA/O=Local Proxy/C=US" \
+            -newkey rsa:2048 \
+            -keyout /certs/ca.key \
+            -out /certs/ca.crt
+          echo "[cert-init] Generating per-domain cert signing key..."
+          openssl genrsa -out /certs/cert.key 2048
+          echo "[cert-init] Done. Import ./e2guardian/certs/ca.crt into your OS/browser trust store."
+        else
+          echo "[cert-init] Certs already exist, skipping generation."
+        fi
+        # Always enforce permissions — e2guardian runs as non-root and needs read access.
+        # 644 is acceptable: these files never leave the Docker volume.
+        chmod 644 /certs/ca.crt /certs/ca.key /certs/cert.key
+
+  # ── WPAD / PAC file server ─────────────────────────────────────────────────
+  # Serves wpad/wpad.dat at http://<host>/wpad.dat on port 80.
+  # Edit wpad/wpad.dat to set the correct PROXY_HOST before deploying.
+  # For DNS-based WPAD auto-discovery, make "wpad" resolve to this host in DNS.
+  wpad:
+    image: alpine:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./wpad:/www:ro
+    command:
+      - sh
+      - -c
+      - exec busybox httpd -f -p 80 -h /www
+    networks:
+      - proxy-net
+
+  # ── Upstream caching proxy ─────────────────────────────────────────────────
+  squid:
+    image: ubuntu/squid:latest
+    restart: unless-stopped
+    environment:
+      # RAM cache size in MB — controls Squid's in-memory object cache.
+      # Disk cache size is managed by the base image defaults (adding cache_dir
+      # here triggers a Squid 6.13 xcalloc bug, so it is intentionally omitted).
+      - SQUID_CACHE_SIZE=${SQUID_CACHE_SIZE:-256}
+    command:
+      - bash
+      - -c
+      - |
+        echo "cache_mem ${SQUID_CACHE_SIZE:-256} MB" > /etc/squid/conf.d/01-cache.conf
+        exec squid -N -d1
+    volumes:
+      # inject overrides only — do NOT replace the base squid.conf to avoid
+      # triggering the xcalloc bug present in Squid 6.13 with custom cache configs
+      - ./squid/squid.conf:/etc/squid/conf.d/00-custom.conf:ro
+      - squid-logs:/var/log/squid
+      - squid-cache:/var/spool/squid
+    # ports:
+    #   - "3128:3128"
+    networks:
+      - proxy-net
+
+  # ── Content filtering layer (faces clients) ────────────────────────────────
+  e2guardian:
+    image: fredbcode/e2guardian:${E2GUARDIAN_VERSION:-v5.6-amd64}
+    restart: unless-stopped
+    # start.sh patches config, applies .env toggles, and generates site.story before launch.
+    entrypoint: ["sh", "/start.sh"]
+    ports:
+      - "8080:8080"
+    environment:
+      # Feature toggles — edit values in .env, then restart the container.
+      E2G_CONTENT_FILTER: "${E2G_CONTENT_FILTER:-on}"
+      E2G_SITE_BLOCK:     "${E2G_SITE_BLOCK:-on}"
+      E2G_SSL_MITM:       "${E2G_SSL_MITM:-on}"
+      E2G_BYPASS:         "${E2G_BYPASS:-off}"
+    volumes:
+      - ./e2guardian/start.sh:/start.sh:ro
+      # site.story is generated at runtime by start.sh (not mounted — toggles control its content).
+      - ./e2guardian/templates/template.html:/usr/share/e2guardian/languages/ukenglish/template.html:ro
+      # Full lists directory mount — e2guardianf1.conf resolves __LISTDIR__ to example.group/.
+      # Drop or edit any file in e2guardian/lists/ and the watcher will hot-reload e2guardian.
+      - ./e2guardian/lists:/etc/e2guardian/lists/example.group:ro
+      # CA certificate volume — populated by cert-init on first run.
+      # Replace ca.crt/ca.key with your own to use a trusted CA instead.
+      - ./e2guardian/certs:/certs:ro
+      - e2guardian-logs:/var/log/e2guardian
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+      squid:
+        condition: service_started
+    networks:
+      - proxy-net
+
+  # ── List watcher — reloads e2guardian on list file changes ────────────────
+  # Watches e2guardian/lists/ and sends SIGHUP to e2guardian (graceful reload,
+  # no connections dropped) whenever a file is added, modified, or removed.
+  e2guardian-watcher:
+    image: alpine:latest
+    restart: unless-stopped
+    volumes:
+      - ./e2guardian/lists:/watch:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache inotify-tools docker-cli >/dev/null 2>&1
+        echo "[watcher] Watching lists/ for changes..."
+        while inotifywait -r -q -e close_write,create,delete,move /watch 2>/dev/null; do
+          sleep 1  # brief pause to coalesce rapid edits
+          echo "[watcher] Lists changed — sending SIGHUP to e2guardian"
+          docker kill --signal HUP \
+            $(docker ps -q --filter "label=com.docker.compose.service=e2guardian") \
+            2>/dev/null || true
+        done
+    depends_on:
+      e2guardian:
+        condition: service_healthy
+
+networks:
+  proxy-net:
+
+volumes:
+  squid-logs:
+  squid-cache:
+  e2guardian-logs:

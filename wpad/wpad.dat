@@ -1,0 +1,36 @@
+// Proxy Auto-Configuration (PAC) file
+// Served at http://<host>/wpad.dat
+//
+// Edit PROXY_HOST to match the hostname or IP address of this proxy server.
+// Clients that receive this file will route all traffic through E2Guardian on port 8080.
+
+var PROXY_HOST = "localhost";
+var PROXY_PORT = "8080";
+
+function FindProxyForURL(url, host) {
+
+    // Always direct: loopback
+    if (isInNet(host, "127.0.0.0", "255.255.255.0")) {
+        return "DIRECT";
+    }
+
+    // Always direct: plain hostnames (intranet, e.g. http://sharepoint/)
+    if (isPlainHostName(host)) {
+        return "DIRECT";
+    }
+
+    // Always direct: .local mDNS domains
+    if (shExpMatch(host, "*.local")) {
+        return "DIRECT";
+    }
+
+    // Always direct: RFC-1918 private ranges
+    if (isInNet(dnsResolve(host), "10.0.0.0",    "255.0.0.0")   ||
+        isInNet(dnsResolve(host), "172.16.0.0",   "255.240.0.0") ||
+        isInNet(dnsResolve(host), "192.168.0.0",  "255.255.0.0")) {
+        return "DIRECT";
+    }
+
+    // All other traffic → E2Guardian proxy
+    return "PROXY " + PROXY_HOST + ":" + PROXY_PORT + "; DIRECT";
+}

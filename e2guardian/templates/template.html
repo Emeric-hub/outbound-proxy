@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Access Blocked</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #1a1a2e;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      max-width: 540px;
+      width: 100%;
+      margin: 24px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      background: #c0392b;
+      padding: 28px 32px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .shield-icon {
+      flex-shrink: 0;
+      width: 48px;
+      height: 48px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .shield-icon svg {
+      width: 26px;
+      height: 26px;
+      fill: #fff;
+    }
+
+    .card-header-text h1 {
+      color: #fff;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .card-header-text p {
+      color: rgba(255,255,255,0.80);
+      font-size: 0.85rem;
+      margin-top: 2px;
+    }
+
+    .card-body {
+      padding: 28px 32px;
+    }
+
+    .url-box {
+      background: #f8f9fb;
+      border: 1px solid #e2e6ea;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      word-break: break-all;
+      font-size: 0.88rem;
+      color: #555;
+    }
+
+    .url-box .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #999;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .url-box .value {
+      color: #333;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .reason-box {
+      background: #fff8f0;
+      border-left: 4px solid #e67e22;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      font-size: 0.92rem;
+      color: #7a4b00;
+    }
+
+    .reason-box .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #c08040;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .meta-item {
+      background: #f0f2f5;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.80rem;
+      color: #666;
+    }
+
+    .meta-item .label {
+      font-weight: 600;
+      color: #888;
+    }
+
+    .footer {
+      padding: 16px 32px;
+      background: #f8f9fb;
+      border-top: 1px solid #e2e6ea;
+      font-size: 0.78rem;
+      color: #aaa;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <div class="shield-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 13l-3-3 1.41-1.41L11 11.17l4.59-4.58L17 8l-6 6z"/>
+        </svg>
+      </div>
+      <div class="card-header-text">
+        <h1>Access Blocked</h1>
+        <p>This website is not available on this network.</p>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <div class="url-box">
+        <div class="label">Blocked URL</div>
+        <div class="value">-URL-</div>
+      </div>
+
+      <div class="reason-box">
+        <div class="label">Reason</div>
+        <div>-REASONGIVEN-</div>
+      </div>
+
+      <div class="meta">
+        <div class="meta-item"><span class="label">Your IP: </span>-IP-</div>
+        <div class="meta-item"><span class="label">User: </span>-USER-</div>
+        <div class="meta-item"><span class="label">Group: </span>-FILTERGROUP-</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Filtered by E2Guardian &mdash; contact your network administrator if you believe this is an error.
+    </div>
+  </div>
+</body>
+</html>
