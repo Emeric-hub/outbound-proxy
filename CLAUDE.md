@@ -37,16 +37,18 @@ A self-contained, configurable HTTP/HTTPS filtering proxy stack running in Docke
 ### Squid
 
 - Image: `ubuntu/squid:latest` (Squid 6.x on Ubuntu)
+- **The image sets `squid` as its entrypoint**, so `docker-compose.yml` overrides it with `entrypoint: ["bash", "-c"]` and passes the startup script as `command:`. Without this override, Docker would run `squid bash -c ...` and Squid would fail on the unrecognized `-c` flag.
 - **Known bug: Squid 6.13 xcalloc crash** when custom `cache_dir` or `cache_mem` is added to conf.d alongside the base image's defaults. This is why `squid.conf` says "do not add cache_dir/cache_mem". The workaround is the `command:` override in docker-compose.yml which generates `01-cache.conf` before starting squid (writes `cache_mem N MB` to conf.d).
+- **Stdout logging**: Squid drops privileges to the `proxy` user, which cannot write to `/dev/stdout`. The `access_log stdio:-` directive also does not work. Workaround: `tail -F /var/log/squid/access.log &` runs in the background (as root, before privilege drop) to stream access logs to container stdout.
 - Config injected via `/etc/squid/conf.d/00-custom.conf` (mounted read-only).
 - `SQUID_CACHE_SIZE` (from `.env`) controls RAM cache size (`cache_mem`). Disk cache is managed by the base image.
-- Squid is **not exposed** to the host by default (commented-out port 3128). It's only accessible to e2guardian via the `proxy-net` Docker network.
+- Squid port 3128 is exposed to the host for direct access. E2Guardian reaches it via the `proxy-net` Docker network.
 
 ### ELK stack
 
-- All three services (filebeat, elasticsearch, kibana) are in `docker-compose.override.yml` — loaded automatically by `docker compose up`.
-- Kibana admin user (`KIBANA_USER`/`KIBANA_PASSWORD`) is upserted by `kibana-init` on every run (idempotent PUT to ES `_security/user`).
-- Changing `ELASTIC_PASSWORD` after first boot requires deleting the `es-data` volume (`docker volume rm proxy_es-data`).
+- All services (filebeat, elasticsearch, kibana, kibana-init) are in `docker-compose.override.yml` — loaded automatically by `docker compose up`. To run without ELK: `docker compose -f docker-compose.yml up`.
+- **Security is disabled** (`xpack.security.enabled=false`) — no authentication required. All curl calls in `kibana-init/init.sh` and Filebeat output are unauthenticated.
+- **Filebeat depends on `kibana-init`** (`condition: service_completed_successfully`) to ensure ingest pipelines exist before indexing starts. Without this, Elasticsearch returns 400 errors for documents referencing non-existent pipelines.
 - `kibana-init` auto-imports `Kibana/export.ndjson` if present (dashboards, data views, saved searches).
 - **Kibana data views**: `e2guardian-access-*` and `squid-access-*`, both indexed by `@timestamp`.
 - **Ingest pipelines**: `e2guardian-access-parse` (grok with `NOTHTAB` pattern + UNIX date + type converts) and `squid-access-parse`.
@@ -69,9 +71,6 @@ A self-contained, configurable HTTP/HTTPS filtering proxy stack running in Docke
 | `E2G_BYPASS` | `off` | Allow users to click through blocks |
 | `E2G_VERSION` | `v5.6-amd64` | E2Guardian image tag |
 | `ELASTIC_VERSION` | `8.13.0` | ELK stack version (keep all three in sync) |
-| `ELASTIC_PASSWORD` | `changeme` | `elastic` superuser password |
-| `KIBANA_USER` | `admin` | Kibana admin username |
-| `KIBANA_PASSWORD` | `changeme` | Kibana admin password |
 | `SQUID_CACHE_SIZE` | `256` | RAM cache in MB (`cache_mem`) |
 
 ---
@@ -93,7 +92,7 @@ A self-contained, configurable HTTP/HTTPS filtering proxy stack running in Docke
 | `wpad/wpad.dat` | PAC file — set PROXY_HOST here |
 | `squid/squid.conf` | Squid overrides (conf.d injection) |
 | `filebeat/filebeat.yml` | Log shipping config |
-| `kibana-init/init.sh` | Provisions ES pipelines, Kibana user, data views, saved objects import |
+| `kibana-init/init.sh` | Provisions ES pipelines, data views, saved objects import |
 | `Kibana/export.ndjson` | Kibana saved objects (auto-imported by kibana-init) |
 | `test.sh` | Smoke test: allowed + banned site checks |
 | `TODO.md` | Improvement backlog (security, reliability, observability) |
@@ -104,9 +103,11 @@ A self-contained, configurable HTTP/HTTPS filtering proxy stack running in Docke
 
 1. **`set_accesslog` ignored**: E2Guardian v5.6 silently ignores file-path log destinations. Fixed with FIFO+tee in `start.sh`.
 2. **Squid xcalloc bug**: Adding `cache_dir` to conf.d crashes Squid 6.13. Workaround: `command:` override generates `cache_mem` conf before starting squid.
-3. **`e2guardian-watcher` never starts**: The watcher uses `condition: service_healthy` but e2guardian has no `healthcheck:` — Docker never marks it healthy, so the watcher silently never starts. See TODO.md for the healthcheck to add.
-4. **Non-log lines in access.log**: `master: Started successfully.` and similar lines appear in the log because the FIFO captures all of e2guardian's stderr. Harmless (pipeline has `ignore_failure: true`) but noisy.
-5. **Undefined list `nolog` warning**: Fixed by creating an empty `e2guardian/lists/nolog` file.
+3. **Squid entrypoint conflict**: `ubuntu/squid:latest` sets `squid` as its entrypoint. Must override with `entrypoint: ["bash", "-c"]` or `command:` args get passed as squid flags.
+4. **Squid stdout logging**: Squid's `proxy` user cannot write to `/dev/stdout` and `stdio:-` doesn't work. Workaround: background `tail -F` in the entrypoint script.
+5. **`e2guardian-watcher` never starts**: The watcher uses `condition: service_healthy` but e2guardian has no `healthcheck:` — Docker never marks it healthy, so the watcher silently never starts. See TODO.md for the healthcheck to add.
+6. **Non-log lines in access.log**: `master: Started successfully.` and similar lines appear in the log because the FIFO captures all of e2guardian's stderr. Harmless (pipeline has `ignore_failure: true`) but noisy.
+7. **Undefined list `nolog` warning**: Fixed by creating an empty `e2guardian/lists/nolog` file.
 
 ---
 

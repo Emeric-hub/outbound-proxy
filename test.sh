@@ -80,7 +80,7 @@ fi
 
 echo ""
 echo "── Block list ───────────────────────────"
-run_blocked "linkadd.de blocked"       http://www.linkadd.de
+run_blocked "malware.testing.google.test blocked"       malware.testing.google.test
 run_blocked "doubleclick.net blocked"  http://doubleclick.net
 
 echo ""

@@ -9,14 +9,13 @@ services:
     restart: unless-stopped
     user: root
     command: ["--strict.perms=false"]
-    environment:
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
     volumes:
       - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
       - squid-logs:/var/log/squid:ro
       - e2guardian-logs:/var/log/e2guardian:ro
     depends_on:
-      - elasticsearch
+      kibana-init:
+        condition: service_completed_successfully
     networks:
       - proxy-net
 
@@ -26,13 +25,9 @@ services:
     restart: unless-stopped
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=true
-      # Disable TLS on the HTTP layer — traffic stays inside the Docker network.
+      - xpack.security.enabled=false
       - xpack.security.http.ssl.enabled=false
       - xpack.security.transport.ssl.enabled=false
-      # Sets the password for the built-in 'elastic' superuser on first boot.
-      # To change it after first boot, delete the es-data volume and restart.
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     volumes:
       - es-data:/usr/share/elasticsearch/data
@@ -47,8 +42,6 @@ services:
       - "5601:5601"
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - ELASTICSEARCH_USERNAME=elastic
-      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
       # Disable the interactive enrollment token prompt on first start
       - xpack.security.enrollment.enabled=false
       # Required alongside enrollment=false to fully skip the setup screen
@@ -80,10 +73,6 @@ services:
   kibana-init:
     image: alpine/curl:latest
     restart: "no"
-    environment:
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-      - KIBANA_USER=${KIBANA_USER}
-      - KIBANA_PASSWORD=${KIBANA_PASSWORD}
     volumes:
       - ./kibana-init/init.sh:/init.sh:ro
       - ./Kibana/export.ndjson:/export.ndjson:ro

@@ -27,8 +27,6 @@ processors:
 
 output.elasticsearch:
   hosts: ["http://elasticsearch:9200"]
-  username: "elastic"
-  password: "${ELASTIC_PASSWORD}"
   # Grok parsing runs in Elasticsearch ingest pipelines (created by kibana-init)
   pipelines:
     - pipeline: "squid-access-parse"

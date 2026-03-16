@@ -56,11 +56,11 @@ services:
       # Disk cache size is managed by the base image defaults (adding cache_dir
       # here triggers a Squid 6.13 xcalloc bug, so it is intentionally omitted).
       - SQUID_CACHE_SIZE=${SQUID_CACHE_SIZE:-256}
+    entrypoint: ["bash", "-c"]
     command:
-      - bash
-      - -c
       - |
-        echo "cache_mem ${SQUID_CACHE_SIZE:-256} MB" > /etc/squid/conf.d/01-cache.conf
+        echo "cache_mem $${SQUID_CACHE_SIZE:-256} MB" > /etc/squid/conf.d/01-cache.conf
+        tail -F /var/log/squid/access.log 2>/dev/null &
         exec squid -N -d1
     volumes:
       # inject overrides only — do NOT replace the base squid.conf to avoid
@@ -68,8 +68,8 @@ services:
       - ./squid/squid.conf:/etc/squid/conf.d/00-custom.conf:ro
       - squid-logs:/var/log/squid
       - squid-cache:/var/spool/squid
-    # ports:
-    #   - "3128:3128"
+    ports:
+      - "3128:3128"
     networks:
       - proxy-net
 

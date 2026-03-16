@@ -6,21 +6,16 @@ set -e
 ES="http://elasticsearch:9200"
 KIBANA="http://kibana:5601"
 
-# Credentials injected via docker-compose environment.
-ELASTIC_PASS="${ELASTIC_PASSWORD:?ELASTIC_PASSWORD is not set}"
-KB_USER="${KIBANA_USER:?KIBANA_USER is not set}"
-KB_PASS="${KIBANA_PASSWORD:?KIBANA_PASSWORD is not set}"
-
 # ── Wait for Elasticsearch ────────────────────────────────────────────────────
 echo "Waiting for Elasticsearch..."
-until curl -sf -u "elastic:${ELASTIC_PASS}" "${ES}/_cluster/health" | grep -qE '"status":"(green|yellow)"'; do
+until curl -sf "${ES}/_cluster/health" | grep -qE '"status":"(green|yellow)"'; do
   sleep 5
 done
 echo "Elasticsearch is ready."
 
 # ── Create ingest pipelines ───────────────────────────────────────────────────
 create_pipeline() {
-  curl -sf -u "elastic:${ELASTIC_PASS}" -X PUT "${ES}/_ingest/pipeline/${1}" \
+  curl -sf -X PUT "${ES}/_ingest/pipeline/${1}" \
     -H "Content-Type: application/json" \
     -d "${2}" > /dev/null \
     && echo "[OK] Pipeline '${1}' created" \
@@ -100,20 +95,8 @@ done
 echo "Kibana is ready."
 
 # ── Create data views ─────────────────────────────────────────────────────────
-# ── Create / update Kibana admin user ────────────────────────────────────────
-# PUT is idempotent: creates on first run, updates password on every subsequent run.
-# This keeps the account in sync with KIBANA_USER / KIBANA_PASSWORD in .env.
-echo "Upserting Kibana admin user '${KB_USER}'..."
-curl -sf -u "elastic:${ELASTIC_PASS}" \
-  -X PUT "${ES}/_security/user/${KB_USER}" \
-  -H "Content-Type: application/json" \
-  -d "{\"password\":\"${KB_PASS}\",\"roles\":[\"superuser\"],\"full_name\":\"Kibana Admin\"}" \
-  > /dev/null \
-  && echo "[OK] User '${KB_USER}' created/updated" \
-  || echo "[WARN] Could not create/update user '${KB_USER}'"
-
 create_data_view() {
-  curl -sf -u "elastic:${ELASTIC_PASS}" \
+  curl -sf \
     -X POST "${KIBANA}/api/data_views/data_view" \
     -H "Content-Type: application/json" \
     -H "kbn-xsrf: true" \
@@ -137,7 +120,7 @@ create_data_view "e2guardian-access-*" "E2Guardian Access Logs"
 # if the objects already exist.
 EXPORT="/export.ndjson"
 if [ -f "${EXPORT}" ]; then
-  curl -sf -u "elastic:${ELASTIC_PASS}" \
+  curl -sf \
     -X POST "${KIBANA}/api/saved_objects/_import?overwrite=true" \
     -H "kbn-xsrf: true" \
     -F "file=@${EXPORT}" > /dev/null \
